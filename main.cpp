@@ -14,9 +14,7 @@ struct Range {
 };
 
 void get_ranges(const short threads_amount, const size_t maxVal, std::vector<Range>& rng) {
-
   uint32_t part = maxVal / threads_amount;
-
   uint32_t start = 0;
   uint32_t finish = 0;
   for (size_t i = 0; i < threads_amount; ++i) {
@@ -30,8 +28,9 @@ void get_ranges(const short threads_amount, const size_t maxVal, std::vector<Ran
     Range range(s, finish);
     rng.push_back(range);
   }
-    
 }
+
+
 
 /// @brief Переписывает последние 4 байта значением value
 void replaceLastFourBytes(std::vector<char>& data, uint32_t value) {
@@ -86,9 +85,9 @@ std::vector<char> hack(const std::vector<char> &original,
 
 int main(int argc, char **argv) {
 
-  // if (argc != 3) {
-  //   std::cerr << "Call with two args: " << argv[0]
-  //             << " <input file> <output file>\n";
+  // if (argc != 4) {
+  //   std::cerr << "Call with three args: " << argv[0]
+  //             << " <input file> <output file> <threads amount 1...100>\n";
   //   return 1;
   // }
 
@@ -100,9 +99,6 @@ int main(int argc, char **argv) {
   for (Range el : ranges) {
     std::cout << el.m_start_number << " " << el.m_finish_number << std::endl;
   }
-
-
-
 
   // try {
   //   const std::vector<char> data = readFromFile(argv[1]);
