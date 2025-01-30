@@ -4,7 +4,7 @@
 #include <fstream>
 
 template <class Stream>
-Stream openFile(const char *path) {
+Stream openFile(const char* path) {
   Stream s(path, std::ios::binary);
 
   if (!s.is_open()) {
@@ -13,7 +13,7 @@ Stream openFile(const char *path) {
   return s;
 }
 
-std::vector<char> readFromFile(const char *path) {
+std::vector<char> readFromFile(const char* path) {
   auto in = openFile<std::ifstream>(path);
 
   std::vector<char> data;
@@ -28,7 +28,7 @@ std::vector<char> readFromFile(const char *path) {
   return data;
 }
 
-void writeToFile(const char *path, const std::vector<char> &data) {
+void writeToFile(const char* path, const std::vector<char> &data) {
   openFile<std::ofstream>(path).write(
       data.data(), static_cast<std::streamsize>(data.size()));
 }
