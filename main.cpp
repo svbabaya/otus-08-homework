@@ -157,14 +157,16 @@ int main(int argc, char **argv) {
   std::vector<Range> ranges;
   const std::string extra = "He-he-he";
   const size_t maxVal = std::numeric_limits<uint32_t>::max();
-  try {
-    const std::vector<char> data = readFromFile(argv[1]);
-    // const std::vector<char> badData = hack(data, extra, maxVal);
-    const std::vector<char> badData = hack2(data, extra, get_ranges(threads_amount, maxVal));
-    writeToFile(argv[2], badData);
-  } catch (std::exception &ex) {
-    std::cerr << ex.what() << '\n';
-    return 2;
-  }
+  size_t n_threads = std::thread::hardware_concurrency();
+
+  // try {
+  //   const std::vector<char> data = readFromFile(argv[1]);
+  //   // const std::vector<char> badData = hack(data, extra, maxVal);
+  //   const std::vector<char> badData = hack2(data, extra, get_ranges(threads_amount, maxVal));
+  //   writeToFile(argv[2], badData);
+  // } catch (std::exception &ex) {
+  //   std::cerr << ex.what() << '\n';
+  //   return 2;
+  // }
   return 0;
-}
+} 
