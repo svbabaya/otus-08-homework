@@ -3,12 +3,13 @@
 #include <limits>
 #include <vector>
 #include <thread>
-#include <chrono>
-#include <mutex>
 
 #include "CRC32.hpp"
 #include "IO.hpp"
 
+
+static bool is_success = false;
+std::mutex search_mutex;
 
 struct Range {
   Range(uint32_t start, uint32_t finish) : m_start_number(start), m_finish_number(finish) {}
@@ -16,13 +17,13 @@ struct Range {
   uint32_t m_finish_number{};
 };
 
-std::vector<Range> get_ranges(const size_t threads_amount, const size_t maxVal) {
+std::vector<Range> get_ranges(const uint32_t threads_amount, const uint32_t maxVal) {
   std::vector<Range> ranges;
   uint32_t part = maxVal / threads_amount;
   uint32_t start = 0;
   uint32_t finish = 0;
   for (size_t i = 0; i < threads_amount; ++i) {
-    size_t s = start;
+    uint32_t s = start;
     if (i == threads_amount - 1) {
       finish = maxVal;
     } else {
@@ -35,15 +36,13 @@ std::vector<Range> get_ranges(const size_t threads_amount, const size_t maxVal) 
   return ranges;
 }
 
-static bool is_success = false;
-std::mutex search_mutex;
-
 /// @brief Переписывает последние 4 байта значением value
-void replaceLastFourBytes(std::vector<char>& data, uint32_t value) {
+void replaceLastFourBytes(std::vector<char> &data, uint32_t value) {
   std::copy_n(reinterpret_cast<const char *>(&value), 4, data.end() - 4);
 }
 
 /**
+ * 
  * @brief Формирует новый вектор с тем же CRC32, добавляя в конец оригинального
  * строку injection и дополнительные 4 байта
  * @details При формировании нового вектора последние 4 байта не несут полезной
@@ -54,121 +53,56 @@ void replaceLastFourBytes(std::vector<char>& data, uint32_t value) {
  * оригинального вектора
  * @return новый вектор
  */
-// std::vector<char> hack(const std::vector<char> &original,
-//                        const std::string &injection, 
-//                        size_t maxVal) {
-//   const uint32_t originalCrc32 = crc32(original.data(), original.size());
-//   std::vector<char> result(original.size() + injection.size() + 4);
-//   auto it = std::copy(original.begin(), original.end(), result.begin());
-//   std::copy(injection.begin(), injection.end(), it);
-//   /*
-//    * Внимание: код ниже крайне не оптимален.
-//    * В качестве доп. задания устраните избыточные вычисления
-//    */
-//   for (size_t i = 0; i < maxVal; ++i) {
-//     // Заменяем последние четыре байта на значение i
-//     replaceLastFourBytes(result, uint32_t(i));
-//     // Вычисляем CRC32 текущего вектора result
-//     auto currentCrc32 = crc32(result.data(), result.size());
-//     if (currentCrc32 == originalCrc32) {
-//       std::cout << "Success\n";
-//       return result;
-//     }
-//     // Отображаем прогресс
-//     if (i % 1000 == 0) {
-//       std::cout << "progress: "
-//                 << static_cast<double>(i) / static_cast<double>(maxVal)
-//                 << std::endl;
-//     }
-//   }
-//   throw std::logic_error("Can't hack");
-// }
 
 void search_result(const uint32_t start,
                     const uint32_t finish, 
                     const uint32_t originalCrc32, 
-                    std::vector<char> &result) {                                                
-    for (size_t i = start; i <= finish; ++i) {  
+                    std::vector<char>& result) {    
+
+    std::lock_guard<std::mutex> lock(search_mutex);  
     if (is_success == true) {
       return;
-    }      
-    std::lock_guard<std::mutex> lock(search_mutex);
-    // Заменяем последние четыре байта на значение i
+    }
+
+    for (size_t i = start; i <= finish; ++i) {  
     replaceLastFourBytes(result, uint32_t(i));
-    // Вычисляем CRC32 текущего вектора result
     auto currentCrc32 = crc32(result.data(), result.size());
+
     if (currentCrc32 == originalCrc32) {
       std::cout << "Success\n";
       is_success = true;
       return;
     }
-    // Отображаем прогресс
+
     if (i % 1000 == 0) {
       std::cout << "progress: "
                 << static_cast<double>(i) / static_cast<double>(finish)
                 << std::endl;
     }
-  }
-  throw std::logic_error("Can't hack");                    
+  }                  
 }
 
-std::vector<char> hack2(const std::vector<char> &original,
-                       const std::string &injection, 
-                       const std::vector<Range> &rng) {
-const uint32_t originalCrc32 = crc32(original.data(), original.size());
-std::vector<char> result(original.size() + injection.size() + 4);
-auto it = std::copy(original.begin(), original.end(), result.begin());
-std::copy(injection.begin(), injection.end(), it);
+std::vector<char> hack(const std::vector<char> &original,
+                       const std::string &injection,
+                       std::vector<Range>& ranges) {
+  const uint32_t originalCrc32 = crc32(original.data(), original.size());
 
-  // uint32_t start1 = rng[0].m_start_number; 
-  // uint32_t finish1 = rng[0].m_finish_number;
-
-  // uint32_t start2 = rng[1].m_start_number; 
-  // uint32_t finish2 = rng[1].m_finish_number;
-
-  // uint32_t start3 = rng[2].m_start_number; 
-  // uint32_t finish3 = rng[2].m_finish_number;
-
-  // std::thread t1(search_result, start1, finish1, originalCrc32, ref(result));
-  // std::thread t2(search_result, start2, finish2, originalCrc32, ref(result));
-  // std::thread t3(search_result, start3, finish3, originalCrc32, ref(result));
-
-  // t1.join();
-  // t2.join();
-  // t3.join();
+  std::vector<char> result(original.size() + injection.size() + 4);
+  auto it = std::copy(original.begin(), original.end(), result.begin());
+  std::copy(injection.begin(), injection.end(), it);
 
   std::vector<std::thread> threads;
-  for (size_t i = 0; i < rng.size(); ++i) {
+  for (size_t i = 0; i < ranges.size(); ++i) {
     threads.push_back(std::thread(search_result, 
-                      rng[i].m_start_number, 
-                      rng[i].m_finish_number,
+                      ranges[i].m_start_number, 
+                      ranges[i].m_finish_number,
                       originalCrc32,
                       ref(result)));      
   }
-  for (size_t i = 0; i < rng.size(); ++i) {
+  for (size_t i = 0; i < ranges.size(); ++i) {
     threads[i].join();
   }
-
   return result;
-  // search_result(start, finish, originalCrc32, result);
-
-  // for (size_t i = start; i <= finish; ++i) {
-  //   // Заменяем последние четыре байта на значение i
-  //   replaceLastFourBytes(result, uint32_t(i));
-  //   // Вычисляем CRC32 текущего вектора result
-  //   auto currentCrc32 = crc32(result.data(), result.size());
-  //   if (currentCrc32 == originalCrc32) {
-  //     std::cout << "Success\n";
-  //     return result;
-  //   }
-  //   // Отображаем прогресс
-  //   if (i % 1000 == 0) {
-  //     std::cout << "progress: "
-  //               << static_cast<double>(i) / static_cast<double>(finish)
-  //               << std::endl;
-  //   }
-  // }
-  // throw std::logic_error("Can't hack");
 }
 
 int main(int argc, char **argv) {
@@ -184,21 +118,23 @@ int main(int argc, char **argv) {
     std::cerr << "The third argument must be a number 1...100\n";
     return 1;
   }
-  std::vector<Range> ranges;
+
   const std::string extra = "He-he-he";
   const size_t maxVal = std::numeric_limits<uint32_t>::max();
-  // size_t n_threads = std::thread::hardware_concurrency();
+  std::vector<Range> ranges = get_ranges(threads_amount, maxVal);
+
+  const auto start_time = std::chrono::steady_clock::now();
   try {
     const std::vector<char> data = readFromFile(argv[1]);
 
-    // const std::vector<char> badData = hack(data, extra, maxVal);
+    const std::vector<char> badData = hack(data, extra, ranges);
 
-    const std::vector<char> badData = hack2(data, extra, get_ranges(threads_amount, maxVal));
-    
     writeToFile(argv[2], badData);
   } catch (std::exception &ex) {
     std::cerr << ex.what() << '\n';
     return 2;
   }
+  const std::chrono::duration<double> dur = std::chrono::steady_clock::now() - start_time;
+  std::cout << "Duration: " << dur.count() << " sec" << std::endl;
   return 0;
-} 
+}

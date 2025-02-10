@@ -1,4 +1,4 @@
 ## otus-08-homework
-* main task: No
+* main task: Yes
 * task 1: No
 * task 2: No
