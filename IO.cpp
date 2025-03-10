@@ -2,6 +2,8 @@
 
 #include <array>
 #include <fstream>
+#include <iostream>
+#include <mutex>
 
 template <class Stream>
 Stream openFile(const char* path) {
@@ -29,6 +31,8 @@ std::vector<char> readFromFile(const char* path) {
 }
 
 void writeToFile(const char* path, const std::vector<char> &data) {
+  std::mutex mtx;
+  std::lock_guard<std::mutex> lck(mtx);
   openFile<std::ofstream>(path).write(
       data.data(), static_cast<std::streamsize>(data.size()));
 }

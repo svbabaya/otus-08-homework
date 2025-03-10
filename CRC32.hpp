@@ -15,5 +15,5 @@
  * @param prev начальное значение CRC32
  * @return контрольная сумма
  */
-uint32_t crc32(const char *bytes, size_t bytesCount,
+uint32_t crc32(const char* bytes, size_t bytesCount,
                uint32_t prev = 0xFFFFFFFF);

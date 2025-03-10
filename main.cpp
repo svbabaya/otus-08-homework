@@ -3,13 +3,13 @@
 #include <limits>
 #include <vector>
 #include <thread>
-// #include <mutex>
+#include <mutex>
 #include <atomic>
+#include <chrono>
 
 #include "CRC32.hpp"
 #include "IO.hpp"
 
-// static bool is_success = false;
 static std::atomic<bool> is_success(false);
 std::mutex mtx;
 
@@ -58,45 +58,47 @@ void hack(const std::vector<char> &original,
     const std::string &injection,
     const char* out_path,
     const uint32_t start,
-    const uint32_t finish) {
+    const uint32_t finish) 
+{
   const uint32_t originalCrc32 = crc32(original.data(), original.size());
   std::vector<char> result(original.size() + injection.size() + 4);
   auto it = std::copy(original.begin(), original.end(), result.begin());
   std::copy(injection.begin(), injection.end(), it);
 
-  /*
-  * Внимание: код ниже крайне не оптимален.
-  * В качестве доп. задания устраните избыточные вычисления
-  */
+  const uint32_t originalPlusInjectionCrc32 = crc32(result.data(), result.size() - 4);
 
   for (size_t i = start; i < finish; ++i) {
     if (is_success.load() == true) {
-      return;
+      break;
     }
+
     // Заменяем последние четыре байта на значение i
     replaceLastFourBytes(result, uint32_t(i));
+
     // Вычисляем CRC32 текущего вектора result
-    auto currentCrc32 = crc32(result.data(), result.size());
+    uint32_t currentCrc32 = crc32(result.data() + (result.size() - 4), 4, originalPlusInjectionCrc32);
 
     if (currentCrc32 == originalCrc32) {
       writeToFile(out_path, result);
       is_success.store(true);
-      std::cout << "Success\n";
+      std::lock_guard<std::mutex> lock(mtx);
+      std::cout << "Thread ID: " << std::this_thread::get_id() << " is successful\n";
       return;
     }
     // Отображаем прогресс
     if (i % 1000 == 0) {
-      std::unique_lock<std::mutex> ulock(mtx);
+      std::lock_guard<std::mutex> lock(mtx);
       std::cout << "progress: "
-      << static_cast<double>(i) / static_cast<double>(finish)
-      << std::endl;
+      << static_cast<double>(i) / static_cast<double>(finish) << std::endl;
     }
   }
-  // throw std::logic_error("Can't hack");
+  std::lock_guard<std::mutex> lock(mtx);
+  std::cout << "Thread ID: " << std::this_thread::get_id() << " is empty\n";
 }
 
 int main(int argc, char** argv) {
   int threads_amount = 1;
+
   if (argc != 4) {
     std::cerr << "Call with three args: " << argv[0]
               << " <input file> <output file> <threads amount 1...100>\n";
@@ -119,7 +121,8 @@ int main(int argc, char** argv) {
   try {
     const std::vector<char> data = readFromFile(argv[1]);
 
-    for (Range rng : ranges) {threads.emplace_back(hack, 
+    for (Range rng : ranges) {
+      threads.emplace_back(hack, 
                               ref(data), 
                               ref(extra), 
                               argv[2], 
